@@ -2,6 +2,13 @@
 
 An AI-powered SQLite Database Assistant that allows users to interact with databases using natural language. Instead of writing SQL manually, users can ask questions in plain English, and the application automatically generates, validates, executes, and explains SQL queries.
 
+
+## 🎥 Demo Video
+
+[![Watch Demo](https://img.youtube.com/vi/uTfhzUdoNOA/0.jpg)](https://www.youtube.com/watch?v=uTfhzUdoNOA)
+
+---
+
 ## Features
 
 * Natural Language → SQL conversion using AI
