@@ -1,0 +1,53 @@
+# =========================
+# Environment & Secrets
+# =========================
+.env
+.env.*
+
+# =========================
+# Python
+# =========================
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# =========================
+# Databases
+# =========================
+*.db
+db.sqlite
+sample.db
+uploads/
+
+# =========================
+# Project Documentation
+# =========================
+Project Documentation AI Assistant DB Main.pdf
+Project Documentation AI Assistant DB.docx
+
+# =========================
+# Demo Files
+# =========================
+Ai Database Assistant Demo VDO.mp4
+proje run.png
+
+# =========================
+# Temporary Files
+# =========================
+*.log
+structure.txt
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db

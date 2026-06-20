@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+{% if not partial %}
+<html>
+<head>
+    <title>AI Database Assistant</title>
+    
+    <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+    <script>
+        // THE FINAL FIX: Manual Scroll Preservation
+        document.addEventListener("htmx:beforeRequest", function() {
+            // Store the current scroll position before the request starts
+            window.currentScrollPos = window.scrollY;
+        });
+
+        document.addEventListener("htmx:afterOnLoad", function() {
+            // Force the browser back to exactly where it was after content swaps
+            if (window.currentScrollPos !== undefined) {
+                window.scrollTo(0, window.currentScrollPos);
+            }
+        });
+
+        htmx.config.scrollRestoration = true;
+        htmx.config.historyEnabled = false;
+    </script>
+
+    <style>
+        body {
+            font-family: Arial;
+            padding: 40px;
+            background-color: #f5f6fa;
+            scroll-behavior: auto !important; 
+        }
+        
+        #main-content {
+            min-height: 100vh;
+            display: block;
+        }
+
+        h2 { color: #2f3640; }
+        .box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .box-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .box-header h3 { margin: 0; }
+
+        input[type="text"] {
+            padding: 10px;
+            margin: 5px 0;
+            width: 60%;
+        }
+        button {
+            padding: 8px 12px;
+            background-color: #273c75;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        button:hover { background-color: #40739e; }
+
+        .disabled-btn {
+            background-color: #dcdde1 !important;
+            color: #7f8fa6 !important;
+            cursor: not-allowed !important;
+        }
+
+        .loader {
+            display: none !important;
+            margin-left: 10px;
+            font-size: 14px;
+            color: #273c75;
+            font-weight: bold;
+        }
+
+        .htmx-request .loader, 
+        .htmx-request#query-loader,
+        #query-loader.htmx-request {
+            display: inline-block !important;
+        }
+
+        .htmx-request button[name="run_query"] {
+            opacity: 0.6;
+            cursor: wait !important;
+        }
+
+        .download-btn { background-color: #0097e6; margin-top: 0; }
+        .export-btn { background-color: #44bd32; margin-left: 5px; }
+        .suggest-btn { background-color: #44bd32; margin: 5px 5px 0 0; }
+        .danger { background-color: #c23616; }
+        .confirm-btn { background-color: #e1b12c; margin-right: 10px; }
+        .cancel-btn { background-color: #7f8fa6; }
+        
+        .message { padding: 10px; margin-bottom: 10px; border-radius: 5px; }
+        .success { background-color: #dff9fb; }
+        .error { background-color: #ffcccc; }
+        .warning { background-color: #fff3cd; }
+        
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th { background-color: #273c75; color: white; }
+        table, th, td { border: 1px solid #dcdde1; }
+        th, td { padding: 8px; text-align: left; }
+        
+        .history-item { border-left: 5px solid #273c75; margin-bottom: 20px; }
+        .query-text { font-weight: bold; color: #192a56; }
+        .sql-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f1f2f6;
+            padding: 10px;
+            margin-top: 5px;
+            font-family: monospace;
+        }
+        .db-tag {
+            background-color: #dcdde1;
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        .expired {
+            background-color: #f8d7da;
+            color: #721c24;
+            font-size: 11px;
+            margin-left: 5px;
+            padding: 3px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body hx-boost="true">
+{% endif %}
+
+<div id="main-content">
+    <h2>🤖 AI Database Assistant</h2>
+
+    {% if message %}
+    <div class="message 
+        {% if '❌' in message %}error
+        {% elif '⚠️' in message %}warning
+        {% else %}success
+        {% endif %}">
+        {{ message }}
+    </div>
+    {% endif %}
+
+    <div class="box">
+        <h3>📂 Select Database</h3>
+        <div class="{% if db_path %}disabled-section{% endif %}">
+            <form method="POST" enctype="multipart/form-data"
+                  hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll">
+                <input type="text" name="db_path" placeholder="Enter DB path" {% if db_path %}disabled{% endif %}>
+                <input type="file" name="db_file" accept=".db" {% if db_path %}disabled{% endif %}>
+                <button type="submit" name="select_db" {% if db_path %}disabled class="disabled-btn"{% endif %}>Load DB</button>
+            </form>
+        </div>
+
+        {% if db_path %}
+            <p><b>Current DB:</b> {{ db_path }}</p>
+            
+            <div style="margin-bottom: 10px;"> 
+                <form action="{{ url_for('download_db') }}" method="GET" style="display:inline;" hx-boost="false">
+                    <button type="submit" class="download-btn">⬇️ .db</button>
+                </form>
+                <form action="{{ url_for('export_db_excel_route') }}" method="GET" style="display:inline;" hx-boost="false">
+                    <button type="submit" class="export-btn">Excel Dump</button>
+                </form>
+                <form action="{{ url_for('export_db_json_route') }}" method="GET" style="display:inline;" hx-boost="false">
+                    <button type="submit" class="export-btn">JSON Dump</button>
+                </form>
+            </div>
+
+            <div style="margin-top:10px;"> 
+                <form action="{{ url_for('export_db_csv_route') }}" method="get" hx-boost="false">
+                    <select name="table">
+                        {% for table in tables %}
+                            <option value="{{ table }}">{{ table }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="export-btn">Download Table CSV</button>
+                </form>
+            </div>
+            <p style="font-size:12px; color:#888;">🔒 Uploaded files are temporary and deleted on DB switch</p>
+            <form method="POST" enctype="multipart/form-data" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll">
+                <input type="text" name="db_path" placeholder="Switch DB">
+                <input type="file" name="db_file" accept=".db">
+                <button type="submit" name="select_db">Switch DB</button>
+            </form>
+        {% endif %}
+    </div>
+
+    {% if db_path %}
+    <div class="box">
+        <h3>💬 Ask Query</h3>
+        <form method="POST" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll" hx-indicator="#query-loader">
+            <input type="text" name="query" placeholder="e.g. show salary of alice">
+            <button type="submit" name="run_query">Run</button>
+            <span id="query-loader" class="loader">⏳ Processing...</span>
+        </form>
+        {% if history %}
+        <form method="POST" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll" style="margin-top: 10px;">
+            <button type="submit" name="clear_all" class="danger">🧹 Clear All History</button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if history %}
+    <h3>📜 Query History</h3>
+    {% for item in history %}
+    <div class="box history-item">
+        <div class="query-text">💬 {{ item.query }}</div>
+        <div class="sql-row">
+    <div>🧠 {{ item.sql }}</div>
+    <div class="db-tag">📂 {{ item.db }} {% if item.expired %}<span class="expired">expired</span>{% endif %}</div>
+</div>
+
+{% if item.explanation %}
+<div style="margin-top:5px; font-size:13px; color:#555;">
+    💡 {{ item.explanation }}
+</div>
+{% endif %}
+
+        {% if item.expired %}
+            <div class="message warning">🔒 Data removed for privacy</div>
+        {% else %}
+            {% if item.type == "warning" %}
+                <div class="message warning">{{ item.message }}</div>
+                {% if item.get("cancelled") %}
+                    <div class="message error">❌ Blocked by user</div>
+                {% else %}
+                    <form method="POST" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll" style="display:inline;">
+                        <input type="hidden" name="confirm_sql" value="{{ item.sql }}">
+                        <button type="submit" class="confirm-btn">⚠️ Confirm Execution</button>
+                    </form>
+                    <form method="POST" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll" style="display:inline;">
+                        <input type="hidden" name="cancel_sql" value="{{ item.sql }}">
+                        <button type="submit" class="cancel-btn">Cancel</button>
+                    </form>
+                {% endif %}
+            {% elif item.type == "suggestion" %}
+                <div class="message warning">{{ item.message }}</div>
+                <form method="POST" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll" style="display:inline;">
+                    <input type="hidden" name="original_query" value="{{ item.query }}">
+                    {% for sug in item.suggestions %}
+                        <button type="submit" name="suggestion_value" value="{{ sug }}" class="suggest-btn">{{ sug }}</button>
+                    {% endfor %}
+                </form>
+            {% elif item.data %}
+                <div style="margin: 10px 0;"> 
+                    <form action="{{ url_for('export_result_csv') }}" method="GET" style="display:inline;" hx-boost="false">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button type="submit" class="export-btn">CSV</button>
+                    </form>
+                    <form action="{{ url_for('export_result_excel') }}" method="GET" style="display:inline;" hx-boost="false">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button type="submit" class="export-btn">Excel</button>
+                    </form>
+                    <form action="{{ url_for('export_result_json') }}" method="GET" style="display:inline;" hx-boost="false">
+                        <input type="hidden" name="index" value="{{ loop.index0 }}">
+                        <button type="submit" class="export-btn">JSON</button>
+                    </form>
+                </div>
+                <table>
+                    <thead>
+                        <tr>{% for col in item.columns %}<th>{{ col }}</th>{% endfor %}</tr>
+                    </thead>
+                    <tbody>
+                        {% for row in item.data %}
+                        <tr>{% for col in row %}<td>{{ col }}</td>{% endfor %}</tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% elif item.type == "success" %}
+                <div class="message success">{{ item.message }}</div>
+            {% elif item.type == "error" %}
+                <div class="message error">{{ item.message }}</div>
+            {% endif %}
+        {% endif %}
+
+        <form method="POST" hx-post="/" hx-target="#main-content" hx-swap="innerHTML show:no-scroll" style="margin-top: 10px;">
+            <input type="hidden" name="delete_index" value="{{ loop.index0 }}">
+            <button type="submit" class="danger">🗑️ Delete</button>
+        </form>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+
+{% if not partial %}
+</body>
+</html>
+{% endif %}
